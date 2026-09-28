@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Глубина станций московского метро</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#EEF1F4; --panel:#FFFFFF; --ink:#18222D; --muted:#5E6B78; --line:#D3DAE1;
+  --ground:#DCE3EA; --ground-edge:#9AA8B6; --soft:#F6F8FA; --focus:#1F5FD1;
+  --font:'Golos Text',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  --display:'Unbounded','Golos Text',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161D; --panel:#18212B; --ink:#E4EAF0; --muted:#95A3B2; --line:#2A3643;
+    --ground:#1D2833; --ground-edge:#4E5E6E; --soft:#141C24; --focus:#7FB0FF;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161D; --panel:#18212B; --ink:#E4EAF0; --muted:#95A3B2; --line:#2A3643;
+  --ground:#1D2833; --ground-edge:#4E5E6E; --soft:#141C24; --focus:#7FB0FF;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.5}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1400px;margin:0 auto;padding:20px 20px 40px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 32px;margin-bottom:14px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(24px,3.4vw,40px);line-height:1.05;margin:0;letter-spacing:-.01em}
+h1 small{display:block;font-family:var(--font);font-weight:400;font-size:15px;color:var(--muted);letter-spacing:0;margin-top:8px;max-width:62ch;line-height:1.45}
+.tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px}
+.tabs button{border:0;background:transparent;padding:7px 14px;border-radius:7px;cursor:pointer;color:var(--muted);font-weight:500}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.controls{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:0 0 12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:3px 10px 3px 4px;cursor:pointer;font-size:13px;white-space:nowrap}
+.chip .num{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:999px;color:#fff;font-weight:600;font-size:11.5px;padding:0 5px}
+.chip[aria-pressed="false"]{opacity:.38}
+.chip[aria-pressed="false"] .num{background:var(--muted)!important}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto}
+.search{position:relative}
+.search input{width:220px;max-width:60vw;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 10px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 11px;cursor:pointer;font-size:13.5px}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:transparent;padding:6px 11px;cursor:pointer;font-size:13.5px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.view{display:none}
+.view.active{display:block}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px}
+.canvasBox{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;height:min(74vh,760px);min-height:420px;touch-action:none}
+canvas{display:block;width:100%;height:100%;cursor:grab}
+canvas.dragging{cursor:grabbing}
+.overlay{position:absolute;left:12px;bottom:12px;right:12px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;pointer-events:none}
+.overlay>*{pointer-events:auto}
+.overlay label{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.overlay input[type=range]{width:110px;accent-color:var(--ink)}
+.hint{position:absolute;top:10px;left:12px;font-size:12.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 9px;pointer-events:none}
+.ramp{position:absolute;top:10px;right:12px;font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;display:none}
+.ramp .bar{width:180px;height:10px;border-radius:3px;margin:4px 0 2px}
+.ramp .ticks{display:flex;justify-content:space-between}
+aside{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card h2{font-size:14px;font-weight:600;margin:0 0 8px;color:var(--muted)}
+.stName{font-family:var(--display);font-weight:500;font-size:20px;line-height:1.2;margin:0 0 6px}
+.stLine{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--muted);margin-bottom:10px}
+.dot{width:11px;height:11px;border-radius:50%;flex:none}
+.bigDepth{font-family:var(--display);font-weight:700;font-size:44px;line-height:1;letter-spacing:-.02em}
+.bigDepth span{font-size:18px;font-weight:500;margin-left:4px}
+.meta{font-size:13.5px;color:var(--muted);margin-top:8px}
+.meta p{margin:4px 0}
+.note{font-size:12.5px;background:var(--soft);border-left:3px solid var(--ground-edge);padding:6px 9px;margin-top:10px;border-radius:0 6px 6px 0}
+.empty{font-size:14px;color:var(--muted)}
+.ringRow{display:grid;grid-template-columns:128px 1fr 44px;gap:8px;align-items:center;font-size:12.5px;margin:5px 0}
+.ringRow .b{height:9px;border-radius:3px;background:var(--ink);opacity:.8}
+.ringRow .v{text-align:right;font-variant-numeric:tabular-nums}
+#rose{width:100%;height:auto;display:block}
+.tip{position:fixed;z-index:20;pointer-events:none;background:var(--ink);color:var(--bg);font-size:13px;border-radius:8px;padding:7px 10px;max-width:260px;line-height:1.35;display:none;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+.tip b{font-weight:600}
+.tip .d{font-family:var(--display);font-weight:700;font-size:16px}
+/* profiles */
+.profiles{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 14px 14px;overflow-x:auto}
+.profiles .row{display:grid;grid-template-columns:170px minmax(560px,1fr);align-items:center;border-bottom:1px solid var(--line);padding:6px 0}
+.profiles .row:last-child{border-bottom:0}
+.profiles .lab{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;padding-right:10px}
+.profiles .lab .num{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;color:#fff;font-weight:600;font-size:12px;padding:0 5px;flex:none}
+.profiles .lab small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.profiles svg{width:100%;display:block;overflow:visible}
+.profiles circle{cursor:pointer}
+.axisNote{font-size:12.5px;color:var(--muted);margin:6px 0 10px}
+/* rating */
+.rateBar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:10px}
+.rateBar select{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 8px}
+.list{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 0}
+.lr{display:grid;grid-template-columns:44px minmax(150px,240px) minmax(120px,210px) 1fr 70px;gap:10px;align-items:center;padding:4px 14px;font-size:13.5px;cursor:pointer}
+.lr:hover{background:var(--soft)}
+.lr .rk{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.lr .nm{display:flex;align-items:center;gap:7px;min-width:0}
+.lr .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lr .zn{color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lr .track{position:relative;height:12px}
+.lr .track i{position:absolute;top:0;height:12px;border-radius:2px}
+.lr .track .zero{position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--muted);opacity:.5}
+.lr .vl{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+/* sources */
+.prose{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 22px;max-width:820px}
+.prose h2{font-family:var(--display);font-weight:500;font-size:19px;margin:18px 0 8px}
+.prose h2:first-child{margin-top:0}
+.prose p,.prose li{max-width:72ch}
+.prose a{color:var(--focus)}
+@media (max-width:980px){
+  .stage{grid-template-columns:1fr}
+  .canvasBox{height:62vh}
+  .lr{grid-template-columns:34px minmax(120px,1fr) 1fr 56px}
+  .lr .zn{display:none}
+  .tools{margin-left:0}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Глубина московского метро
+      <small>Каждая станция висит под своей точкой на карте города. Крутите сцену: сверху видно, где станция находится, сбоку — насколько глубоко.</small>
+    </h1>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-view="v3d">Объём</button>
+      <button role="tab" aria-selected="false" data-view="vprof">Профили линий</button>
+      <button role="tab" aria-selected="false" data-view="vrate">Рейтинг</button>
+      <button role="tab" aria-selected="false" data-view="vsrc">Источники</button>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="chips" id="chips"></div>
+    <div class="tools">
+      <button class="btn" id="allLines">Все линии</button>
+      <div class="search"><input id="q" list="names" placeholder="Найти станцию" aria-label="Найти станцию"><datalist id="names"></datalist></div>
+    </div>
+  </div>
+
+  <section class="view active" id="v3d">
+    <div class="stage">
+      <div class="canvasBox" id="box">
+        <canvas id="cv" aria-label="Трёхмерная схема глубины станций"></canvas>
+        <div class="hint" id="hint">Тяните, чтобы повернуть · колесо — масштаб</div>
+        <div class="ramp" id="ramp"><div>Глубина, м</div><div class="bar" id="rampBar"></div><div class="ticks"><span>+10</span><span>0</span><span>20</span><span>40</span><span>60</span><span>75</span></div></div>
+        <div class="overlay">
+          <div class="seg" role="group" aria-label="Ракурс">
+            <button data-preset="top">Сверху</button>
+            <button data-preset="iso" aria-pressed="true">3D</button>
+            <button data-preset="side">Разрез</button>
+          </div>
+          <div class="seg" role="group" aria-label="Цвет точек">
+            <button data-color="line" aria-pressed="true">Цвет линий</button>
+            <button data-color="depth">Цвет глубины</button>
+          </div>
+          <label>Вертикаль ×<input type="range" id="exag" min="40" max="320" value="150"></label>
+          <label><input type="checkbox" id="labels" checked> Подписи глубоких</label>
+        </div>
+      </div>
+      <aside>
+        <div class="card" id="info"><p class="empty">Наведите курсор на станцию или нажмите на неё, чтобы увидеть подробности.</p></div>
+        <div class="card">
+          <h2>Средняя глубина по направлениям</h2>
+          <svg id="rose" viewBox="0 0 260 260" role="img" aria-label="Средняя глубина станций по сторонам света"></svg>
+        </div>
+        <div class="card">
+          <h2>От центра к окраинам</h2>
+          <div id="rings"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="view" id="vprof">
+    <p class="axisNote">Все линии в одном масштабе: пунктир — поверхность земли, сетка через 20 м. Станции идут по порядку, расстояния между ними условные.</p>
+    <div class="profiles" id="profiles"></div>
+  </section>
+
+  <section class="view" id="vrate">
+    <div class="rateBar">
+      <select id="zoneSel" aria-label="Зона города">
+        <option value="">Весь город</option>
+        <option value="0">В пределах Садового кольца</option>
+        <option value="1">Между Садовым и ТТК</option>
+        <option value="2">Между ТТК и МКАД</option>
+        <option value="3">За МКАД</option>
+      </select>
+      <select id="secSel" aria-label="Направление"><option value="">Все направления</option></select>
+      <div class="seg" role="group" aria-label="Порядок">
+        <button data-sort="desc" aria-pressed="true">Сначала глубокие</button>
+        <button data-sort="asc">Сначала мелкие</button>
+      </div>
+      <span class="axisNote" id="rateCount" style="margin:0"></span>
+    </div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <section class="view" id="vsrc">
+    <div class="prose">
+      <h2>Откуда цифры</h2>
+      <p>Единой официальной таблицы глубин всех станций Московский метрополитен не публикует. Официальные цифры есть в основном для станций, построенных после 2011 года: их приводят Комплекс градостроительной политики и строительства Москвы (stroi.mos.ru) и mos.ru. Для станций советской постройки основной свод — схема глубин Алексея Гончарова и metro.ru, на которые ссылается Википедия.</p>
+      <ul>
+        <li><a href="https://en.wikipedia.org/wiki/List_of_Moscow_Metro_stations" target="_blank" rel="noopener">List of Moscow Metro stations</a> — глубины и координаты большинства станций (ссылается на схему Гончарова).</li>
+        <li><a href="https://alexeygoncharov.livejournal.com/1429.html" target="_blank" rel="noopener">Схема глубин и конструкций станций московского метро</a>, Алексей Гончаров.</li>
+        <li><a href="https://stroi.mos.ru/metro" target="_blank" rel="noopener">stroi.mos.ru</a> — карточки новых станций (тип заложения, глубина).</li>
+        <li><a href="https://www.mos.ru/mayor/themes/13382050/" target="_blank" rel="noopener">mos.ru</a> — открытие участка Троицкой линии, сентябрь 2025.</li>
+        <li><a href="https://www.msk.kp.ru/daily/277813.5/5299000/" target="_blank" rel="noopener">КП</a> — глубины станций Рублёво-Архангельской линии, открытой 5 сентября 2026.</li>
+        <li><a href="https://aif.ru/moscow/serezno-kopaesh-tayny-samyh-glubokih-stanciy-moskovskogo-metropolitena" target="_blank" rel="noopener">АиФ</a> — глубина «Марьиной Рощи» БКЛ.</li>
+      </ul>
+      <h2>Что важно знать</h2>
+      <p>Глубина заложения считается от поверхности земли над станцией, а не от уровня моря. Разные источники нередко расходятся на несколько метров, а для «Парка Победы» — сильно: в материалах метрополитена и мэрии встречаются 73, 80 и 84 м, при этом высота эскалаторных наклонов даёт около 67 м. Здесь использовано 73,6 м.</p>
+      <p>Значения со значком «≈» — оценки: для этих станций в открытых источниках указан только тип (мелкое заложение), без точной цифры. На соотношение глубин это почти не влияет — все они в диапазоне 10–25 м.</p>
+      <p>Станции над землёй (эстакада Бутовской линии, мост «Воробьёвы горы») показаны выше поверхности. МЦК, МЦД и закрытый в 2025 году монорельс не включены. Границы Садового кольца, ТТК и МКАД на схеме условные — окружности и эллипс, поэтому зона отдельных станций у МКАД определена приблизительно.</p>
+      <p>Данные актуальны на конец сентября 2026 года.</p>
+    </div>
+  </section>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+(function(){
+// ---------- DATA: [name, depth m (negative = above ground), lat, lon, flag] flag 'a' = approximate ----------
+const LINES = [
+{id:'1',name:'Сокольническая',color:'#E42313',st:[
+['Бульвар Рокоссовского',8,55.8148,37.7342],['Черкизовская',9,55.8038,37.7448],['Преображенская площадь',8,55.7963,37.7151],['Сокольники',9,55.7888,37.6802],['Красносельская',8,55.7801,37.6673],['Комсомольская',8,55.7753,37.6562],['Красные Ворота',31,55.7690,37.6487],['Чистые пруды',35,55.7657,37.6388],['Лубянка',32.5,55.7597,37.6272],['Охотный Ряд',15,55.7577,37.6166],['Библиотека имени Ленина',12,55.7512,37.6100],['Кропоткинская',13,55.7453,37.6037],['Парк культуры',10.5,55.7356,37.5943],['Фрунзенская',42,55.7267,37.5786],['Спортивная',42,55.7233,37.5639],['Воробьёвы горы',-10,55.7103,37.5592],['Университет',26.5,55.6926,37.5333],['Проспект Вернадского',8,55.6771,37.5060],['Юго-Западная',8,55.6637,37.4833],['Тропарёво',12,55.6459,37.4725],['Румянцево',12,55.6330,37.4419],['Саларьево',12,55.6227,37.4240],['Филатов Луг',0,55.6014,37.4076],['Прокшино',0,55.5862,37.4338],['Ольховая',5,55.5686,37.4593],['Новомосковская',5,55.5604,37.4682],['Потапово',12,55.5526,37.4928,'a']]},
+{id:'2',name:'Замоскворецкая',color:'#4FB04F',st:[
+['Ховрино',14,55.8791,37.4822],['Беломорская',25,55.8658,37.4764],['Речной вокзал',6,55.8549,37.4761],['Водный стадион',6,55.8398,37.4867],['Войковская',7,55.8190,37.4980],['Сокол',9.6,55.8051,37.5153],['Аэропорт',10,55.8003,37.5329],['Динамо',39.6,55.7897,37.5580],['Белорусская',33.1,55.7767,37.5835],['Маяковская',33.1,55.7701,37.5958],['Тверская',42,55.7647,37.6065],['Театральная',33.9,55.7578,37.6190],['Новокузнецкая',37.5,55.7415,37.6295],['Павелецкая',33.5,55.7305,37.6377],['Автозаводская',11,55.7074,37.6576],['Технопарк',0,55.6950,37.6641],['Коломенская',9,55.6785,37.6638],['Каширская',7,55.6551,37.6487],['Кантемировская',8,55.6358,37.6564],['Царицыно',8,55.6214,37.6694],['Орехово',9,55.6132,37.6949],['Домодедовская',9.5,55.6108,37.7186],['Красногвардейская',9,55.6137,37.7444],['Алма-Атинская',10,55.6326,37.7660]]},
+{id:'3',name:'Арбатско-Покровская',color:'#0072BA',st:[
+['Пятницкое шоссе',11,55.8563,37.3544],['Митино',14,55.8457,37.3622],['Волоколамская',14,55.8354,37.3822],['Мякинино',0,55.8252,37.3852],['Строгино',8,55.8038,37.4031],['Крылатское',9.5,55.7567,37.4081],['Молодёжная',6.5,55.7408,37.4168],['Кунцевская',0,55.7307,37.4459],['Славянский бульвар',8.5,55.7296,37.4706],['Парк Победы',73.6,55.7362,37.5182],['Киевская',38,55.7442,37.5645],['Смоленская',50,55.7474,37.5823],['Арбатская',41,55.7522,37.6061],['Площадь Революции',33.6,55.7566,37.6216],['Курская',30.7,55.7576,37.6577],['Бауманская',32.5,55.7730,37.6806],['Электрозаводская',31.5,55.7817,37.7037],['Семёновская',40,55.7833,37.7208],['Партизанская',9,55.7886,37.7506],['Измайловская',0,55.7878,37.7814],['Первомайская',7,55.7948,37.7993],['Щёлковская',8,55.8094,37.7986]]},
+{id:'4',name:'Филёвская',color:'#1EBCEF',st:[
+['Кунцевская',0,55.7307,37.4459],['Пионерская',0,55.7360,37.4671],['Филёвский парк',0,55.7396,37.4833],['Багратионовская',0,55.7438,37.4977],['Фили',0,55.7460,37.5150],['Кутузовская',0,55.7399,37.5344],['Студенческая',0,55.7388,37.5483],['Киевская',8.7,55.7436,37.5655],['Смоленская',8,55.7488,37.5825],['Арбатская',8,55.7518,37.6007],['Александровский сад',7,55.7525,37.6085]],
+ branch:{from:'Киевская',st:[['Деловой центр',25,55.7502,37.5408],['Москва-Сити',25,55.7483,37.5339]]}},
+{id:'5',name:'Кольцевая',color:'#915133',ring:true,st:[
+['Киевская',48,55.7446,37.5644],['Краснопресненская',35.5,55.7613,37.5774],['Белорусская',42.5,55.7764,37.5844],['Новослободская',40,55.7799,37.6028],['Проспект Мира',40,55.7798,37.6318],['Комсомольская',37,55.7748,37.6549],['Курская',40,55.7570,37.6595],['Таганская',53,55.7418,37.6517],['Павелецкая',40,55.7318,37.6379],['Добрынинская',35.5,55.7291,37.6243],['Октябрьская',40,55.7297,37.6091],['Парк культуры',40,55.7357,37.5915]]},
+{id:'6',name:'Калужско-Рижская',color:'#F07E24',st:[
+['Медведково',10,55.8872,37.6613],['Бабушкинская',10,55.8694,37.6644],['Свиблово',8,55.8552,37.6527],['Ботанический сад',7,55.8449,37.6383],['ВДНХ',53.5,55.8211,37.6411],['Алексеевская',51,55.8088,37.6390],['Рижская',46,55.7936,37.6362],['Проспект Мира',50,55.7812,37.6318],['Сухаревская',43,55.7733,37.6319],['Тургеневская',49,55.7661,37.6374],['Китай-город',29,55.7553,37.6333],['Третьяковская',46,55.7412,37.6274],['Октябрьская',50,55.7306,37.6112],['Шаболовская',46.5,55.7198,37.6083],['Ленинский проспект',16,55.7077,37.5861],['Академическая',8.5,55.6877,37.5733],['Профсоюзная',7,55.6780,37.5627],['Новые Черёмушки',7,55.6702,37.5544],['Калужская',10,55.6571,37.5405],['Беляево',12,55.6428,37.5257],['Коньково',8,55.6333,37.5188],['Тёплый Стан',8,55.6191,37.5082],['Ясенево',8,55.6063,37.5333],['Новоясеневская',7,55.6010,37.5541]]},
+{id:'7',name:'Таганско-Краснопресненская',color:'#943E90',st:[
+['Планерная',6,55.8607,37.4364],['Сходненская',6,55.8505,37.4396],['Тушинская',10.5,55.8267,37.4368],['Спартак',10,55.8182,37.4352],['Щукинская',13,55.8086,37.4641],['Октябрьское Поле',11,55.7935,37.4935],['Полежаевская',10,55.7775,37.5192],['Беговая',9,55.7738,37.5468],['Улица 1905 года',11,55.7650,37.5613],['Баррикадная',30,55.7612,37.5795],['Пушкинская',51,55.7650,37.6079],['Кузнецкий Мост',39.5,55.7606,37.6259],['Китай-город',29,55.7553,37.6333],['Таганская',36,55.7402,37.6522],['Пролетарская',9,55.7319,37.6659],['Волгоградский проспект',8,55.7253,37.6869],['Текстильщики',13,55.7088,37.7316],['Кузьминки',8,55.7056,37.7656],['Рязанский проспект',6,55.7170,37.7933],['Выхино',0,55.7156,37.8181],['Лермонтовский проспект',12,55.7013,37.8525],['Жулебино',15,55.6855,37.8563],['Котельники',15,55.6743,37.8582]]},
+{id:'8',name:'Калининская',color:'#FFCD1C',st:[
+['Третьяковская',46,55.7412,37.6274],['Марксистская',60,55.7411,37.6543],['Площадь Ильича',46,55.7472,37.6824],['Авиамоторная',53,55.7524,37.7191],['Шоссе Энтузиастов',53,55.7576,37.7500],['Перово',9,55.7511,37.7866],['Новогиреево',9,55.7517,37.8166],['Новокосино',9,55.7451,37.8638]]},
+{id:'8А',name:'Солнцевская',color:'#FFCD1C',st:[
+['Деловой центр',30,55.7475,37.5319],['Парк Победы',73.6,55.7362,37.5182],['Минская',15,55.7246,37.4970],['Ломоносовский проспект',15,55.7069,37.5156],['Раменки',15,55.6975,37.4984],['Мичуринский проспект',13,55.6896,37.4833],['Озёрная',25,55.6709,37.4491],['Говорово',14,55.6595,37.4172],['Солнцево',13,55.6493,37.3909],['Боровское шоссе',20,55.6476,37.3701],['Новопеределкино',16,55.6396,37.3552],['Рассказовка',12,55.6339,37.3347],['Пыхтино',3,55.6275,37.3020,'a'],['Аэропорт Внуково',12,55.6045,37.2870,'a']]},
+{id:'9',name:'Серпуховско-Тимирязевская',color:'#A1A2A3',st:[
+['Алтуфьево',9,55.8980,37.5870],['Бибирево',9.5,55.8838,37.6034],['Отрадное',9,55.8633,37.6047],['Владыкино',10.5,55.8473,37.5899],['Петровско-Разумовская',61,55.8351,37.5745],['Тимирязевская',63.5,55.8176,37.5765],['Дмитровская',59,55.8069,37.5817],['Савёловская',52,55.7927,37.5885],['Менделеевская',48.5,55.7810,37.6011],['Цветной бульвар',50,55.7708,37.6187],['Чеховская',62,55.7644,37.6097],['Боровицкая',46.5,55.7511,37.6072],['Полянка',36.5,55.7379,37.6180],['Серпуховская',43,55.7280,37.6246],['Тульская',9.5,55.7087,37.6229],['Нагатинская',13.5,55.6830,37.6224],['Нагорная',9,55.6724,37.6104],['Нахимовский проспект',9.5,55.6627,37.6055],['Севастопольская',13,55.6524,37.5984],['Чертановская',10.5,55.6405,37.6067],['Южная',10,55.6224,37.6090],['Пражская',9.5,55.6124,37.6044],['Улица Академика Янгеля',8,55.5949,37.6004],['Аннино',8,55.5828,37.5966],['Бульвар Дмитрия Донского',10,55.5693,37.5769]]},
+{id:'10',name:'Люблинско-Дмитровская',color:'#A9C02C',st:[
+['Физтех',16,55.9230,37.5450,'a'],['Лианозово',17,55.8990,37.5590,'a'],['Яхромская',18,55.8850,37.5540,'a'],['Селигерская',20,55.8650,37.5483],['Верхние Лихоборы',65,55.8558,37.5611],['Окружная',65,55.8460,37.5743],['Петровско-Разумовская',61,55.8351,37.5745],['Фонвизинская',65,55.8228,37.5881],['Бутырская',60,55.8133,37.6028],['Марьина Роща',60,55.7954,37.6162],['Достоевская',60,55.7816,37.6151],['Трубная',60,55.7688,37.6200],['Сретенский бульвар',60,55.7668,37.6392],['Чкаловская',51,55.7565,37.6573],['Римская',54,55.7463,37.6819],['Крестьянская застава',47,55.7331,37.6673],['Дубровка',62,55.7186,37.6760],['Кожуховская',12,55.7074,37.6851],['Печатники',4,55.6934,37.7270],['Волжская',8,55.6909,37.7530],['Люблино',8,55.6758,37.7618],['Братиславская',8,55.6597,37.7505],['Марьино',8,55.6500,37.7431],['Борисово',10,55.6334,37.7436],['Шипиловская',10,55.6211,37.7437],['Зябликово',15,55.6124,37.7453]]},
+{id:'11',name:'Большая кольцевая',color:'#6FC1C3',ring:true,st:[
+['Савёловская',65,55.7936,37.5880],['Марьина Роща',72,55.7955,37.6140],['Рижская',65,55.7925,37.6385,'a'],['Сокольники',34,55.7903,37.6790],['Электрозаводская',20,55.7803,37.7030],['Лефортово',23,55.7647,37.7067],['Авиамоторная',25,55.7537,37.7191,'a'],['Нижегородская',22,55.7317,37.7301],['Текстильщики',22,55.7070,37.7284],['Печатники',20,55.6940,37.7270,'a'],['Нагатинский Затон',18,55.6845,37.7050,'a'],['Кленовый бульвар',24,55.6755,37.6846,'a'],['Каширская',7,55.6551,37.6487],['Варшавская',9,55.6533,37.6194],['Каховская',8,55.6530,37.5983],['Зюзино',17,55.6563,37.5721],['Воронцовская',23,55.6587,37.5399],['Новаторская',11,55.6701,37.5218],['Проспект Вернадского',16,55.6778,37.5050],['Мичуринский проспект',19,55.6884,37.4851],['Аминьевская',33,55.6972,37.4642],['Давыдково',33,55.7153,37.4517],['Кунцевская',31,55.7304,37.4457],['Терехово',22,55.7492,37.4606],['Мнёвники',28,55.7585,37.4708],['Народное Ополчение',27,55.7738,37.4844],['Хорошёвская',21,55.7768,37.5207],['ЦСКА',28,55.7866,37.5333],['Петровский парк',25,55.7918,37.5571]]},
+{id:'12',name:'Бутовская',color:'#8FA7D8',st:[
+['Битцевский парк',10,55.6004,37.5562],['Лесопарковая',10,55.5821,37.5769],['Улица Старокачаловская',10,55.5690,37.5767],['Улица Скобелевская',-9.6,55.5481,37.5546],['Бульвар Адмирала Ушакова',-9.6,55.5455,37.5430],['Улица Горчакова',-9.6,55.5418,37.5308],['Бунинская аллея',-9.6,55.5380,37.5158]]},
+{id:'15',name:'Некрасовская',color:'#DE64A1',st:[
+['Нижегородская',22,55.7317,37.7301],['Стахановская',22,55.7250,37.7619,'a'],['Окская',20,55.7186,37.7817],['Юго-Восточная',20,55.7050,37.8190],['Косино',27,55.7033,37.8511],['Улица Дмитриевского',18,55.7100,37.8792],['Лухмановская',15,55.7085,37.9004],['Некрасовка',16,55.7036,37.9264]]},
+{id:'16',name:'Троицкая',color:'#03795F',st:[
+['ЗИЛ',16,55.6995,37.6450,'a'],['Крымская',20,55.6905,37.6070,'a'],['Академическая',22,55.6878,37.5770,'a'],['Вавиловская',15,55.6850,37.5470,'a'],['Новаторская',11,55.6701,37.5218],['Университет Дружбы Народов',23,55.6515,37.5050],['Генерала Тюленева',15,55.6275,37.4985,'a'],['Тютчевская',12.65,55.5985,37.4745],['Корниловская',16.18,55.5815,37.4770],['Коммунарка',15,55.5700,37.4780,'a'],['Новомосковская',13,55.5595,37.4700,'a']]},
+{id:'17',name:'Рублёво-Архангельская',color:'#5B6770',st:[
+['Деловой центр',24.5,55.7490,37.5395],['Шелепиха',20,55.7572,37.5248],['Звенигородская',28.4,55.7640,37.5155],['Народное Ополчение',24,55.7752,37.4868],['Бульвар Генерала Карбышева',18.6,55.7865,37.4765]]}
+];
+const NOTES = {
+ '3|Парк Победы':'Официальные источники дают разные цифры — 73, 80 и 84 м; по высоте эскалаторов выходит около 67 м. Здесь 73,6 м.',
+ '8А|Парк Победы':'Кросс-платформенная пересадка на Арбатско-Покровскую линию. Разброс данных — от 67 до 84 м.',
+ '11|Марьина Роща':'Цифра по данным АиФ; на станции самый длинный эскалатор в Москве — 130 м.',
+ '1|Воробьёвы горы':'Станция на нижнем ярусе Лужнецкого метромоста, над Москвой-рекой.',
+ '12|Улица Скобелевская':'Бутовская линия здесь идёт по эстакаде.',
+ '3|Кунцевская':'Наземная станция, общая с Филёвской линией.',
+ '1|Охотный Ряд':'Единственная трёхсводчатая станция мельче 25 м.'
+};
+const APPROX_NOTE='≈ Оценка: в открытых источниках указан только тип «мелкое заложение», без точной цифры.';
+const ZONE_OVERRIDE={'Лесопарковая':3,'Румянцево':3,'Говорово':3,'Планерная':2};
+const RING_NAMES=['В пределах Садового кольца','Между Садовым и ТТК','Между ТТК и МКАД','За МКАД'];
+const RING_LOWER=['в пределах Садового кольца','между Садовым и ТТК','между ТТК и МКАД','за МКАД'];
+const SECTORS=['Север','Северо-восток','Восток','Юго-восток','Юг','Юго-запад','Запад','Северо-запад'];
+const C0={lat:55.7539,lon:37.6208};
+const KX=62.65, KY=111.2;
+const MKAD={cx:(37.614-C0.lon)*KX, cy:(55.742-C0.lat)*KY, rx:14.8, ry:18.8};
+const R_SAD=2.4, R_TTK=5.3;
+
+// ---------- BUILD ----------
+const STATIONS=[]; const PATHS=[];
+function mk(line,a){
+  const [name,depth,lat,lon,flag]=a;
+  const x=(lon-C0.lon)*KX, y=(lat-C0.lat)*KY;
+  const r=Math.hypot(x,y);
+  let ring;
+  if(r<R_SAD) ring=0; else if(r<R_TTK) ring=1;
+  else { const e=((x-MKAD.cx)/MKAD.rx)**2+((y-MKAD.cy)/MKAD.ry)**2; ring = e<=1?2:3; }
+  if(ZONE_OVERRIDE[name]!==undefined && ring>=2) ring=ZONE_OVERRIDE[name];
+  let b=Math.atan2(x,y)*180/Math.PI; if(b<0)b+=360;
+  const sector=Math.round(b/45)%8;
+  const s={key:line.id+'|'+name,name,line,depth,lat,lon,approx:flag==='a',x,y,ring,sector};
+  STATIONS.push(s); return s;
+}
+LINES.forEach(L=>{
+  L.stations=L.st.map(a=>mk(L,a));
+  const p=L.stations.slice(); if(L.ring)p.push(p[0]);
+  PATHS.push({line:L,st:p});
+  if(L.branch){
+    const from=L.stations.find(s=>s.name===L.branch.from);
+    const br=L.branch.st.map(a=>mk(L,a));
+    L.stations=L.stations.concat(br);
+    PATHS.push({line:L,st:[from].concat(br),branch:true});
+  }
+});
+const maxDepth=Math.max(...STATIONS.map(s=>s.depth));
+const sortedDepths=STATIONS.map(s=>s.depth).sort((a,b)=>a-b);
+
+// ---------- STATE ----------
+const visible=new Set(LINES.map(l=>l.id));
+let colorMode='line', selected=null, hovered=null;
+const cam={yaw:-0.35,pitch:0.75,zoom:1,exag:150};
+
+// ---------- HELPERS ----------
+const $=id=>document.getElementById(id);
+const fmt=v=>(Math.round(v*10)/10).toString().replace('.',',');
+function depthText(s){
+  if(s.depth<0) return '+'+fmt(-s.depth)+' м над землёй';
+  if(s.depth===0) return 'на поверхности';
+  return (s.approx?'≈ ':'')+fmt(s.depth)+' м';
+}
+function zoneText(s){ return (s.ring===0?'Центр':SECTORS[s.sector])+', '+RING_LOWER[s.ring]; }
+const RAMP=[[-10,[127,196,232]],[0,[233,216,166]],[15,[224,160,88]],[35,[196,84,72]],[55,[120,40,96]],[75,[48,22,70]]];
+function depthColor(d){
+  if(d<=RAMP[0][0])return 'rgb('+RAMP[0][1]+')';
+  for(let i=1;i<RAMP.length;i++){ if(d<=RAMP[i][0]){ const [d0,c0]=RAMP[i-1],[d1,c1]=RAMP[i]; const t=(d-d0)/(d1-d0);
+    return 'rgb('+c0.map((c,j)=>Math.round(c+(c1[j]-c)*t)).join(',')+')'; } }
+  return 'rgb('+RAMP[RAMP.length-1][1]+')';
+}
+$('rampBar').style.background='linear-gradient(90deg,'+[-10,0,15,35,55,75].map(depthColor).join(',')+')';
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function hexA(hex,a){const h=hex.replace('#','');const n=parseInt(h,16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;}
+function numBadge(L){return `<span class="num" style="background:${L.color};${L.id==='8'||L.id==='8А'?'color:#3a2e00':''}">${L.id}</span>`;}
+
+// ---------- CHIPS / SEARCH ----------
+const chipsEl=$('chips');
+LINES.forEach(L=>{
+  const b=document.createElement('button'); b.className='chip'; b.setAttribute('aria-pressed','true'); b.title=L.name;
+  b.innerHTML=numBadge(L)+'<span>'+L.name+'</span>';
+  b.onclick=()=>{ if(visible.has(L.id)) visible.delete(L.id); else visible.add(L.id); b.setAttribute('aria-pressed',visible.has(L.id)); refresh(); };
+  chipsEl.appendChild(b);
+});
+$('allLines').onclick=()=>{ LINES.forEach(L=>visible.add(L.id)); chipsEl.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed','true')); refresh(); };
+const dl=$('names'); const seen=new Set();
+STATIONS.forEach(s=>{ const v=s.name+' — '+s.line.name; if(!seen.has(v)){seen.add(v);const o=document.createElement('option');o.value=v;dl.appendChild(o);} });
+$('q').addEventListener('change',e=>{
+  const v=e.target.value.trim().toLowerCase(); if(!v)return;
+  const s=STATIONS.find(s=>(s.name+' — '+s.line.name).toLowerCase()===v)||STATIONS.find(s=>s.name.toLowerCase().startsWith(v.split(' — ')[0]));
+  if(s){ if(!visible.has(s.line.id)){visible.add(s.line.id);chipsEl.children[LINES.indexOf(s.line)].setAttribute('aria-pressed','true');}
+    select(s); showTab('v3d'); }
+});
+
+// ---------- TABS ----------
+function showTab(id){
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.view===id));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));
+  if(id==='v3d')resize(); if(id==='vprof')drawProfiles(); if(id==='vrate')drawList();
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.view));
+
+// ---------- 3D CANVAS ----------
+const cv=$('cv'), ctx=cv.getContext('2d'), box=$('box');
+let W=0,H=0,DPR=1, projCache=[];
+function resize(){
+  const r=box.getBoundingClientRect(); if(!r.width)return;
+  DPR=Math.min(window.devicePixelRatio||1,2); W=r.width; H=r.height;
+  cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); draw();
+}
+new ResizeObserver(resize).observe(box);
+const SCN={x:-2,y:-3};
+function P(x,y,zm){ // zm = depth in metres (positive down)
+  const c=Math.cos(cam.yaw), s=Math.sin(cam.yaw);
+  const X=x-SCN.x, Y=y-SCN.y;
+  const rx=X*c-Y*s, ry=X*s+Y*c;
+  const sc=Math.min(W/46,H/34)*cam.zoom;
+  const z=zm/1000*cam.exag;
+  const zMid=32/1000*cam.exag;
+  const sp=Math.sin(cam.pitch), cp=Math.cos(cam.pitch);
+  return {sx:W/2+sc*rx, sy:H/2-sc*(zMid*cp)-sc*ry*sp+sc*z*cp, ry};
+}
+function drawGround(ink,edge,ground){
+  // MKAD ellipse
+  ctx.beginPath();
+  for(let i=0;i<=96;i++){const a=i/96*Math.PI*2;const p=P(MKAD.cx+MKAD.rx*Math.cos(a),MKAD.cy+MKAD.ry*Math.sin(a),0);i?ctx.lineTo(p.sx,p.sy):ctx.moveTo(p.sx,p.sy);}
+  ctx.fillStyle=ground; ctx.globalAlpha=.55; ctx.fill(); ctx.globalAlpha=1;
+  ctx.strokeStyle=edge; ctx.lineWidth=1.2; ctx.setLineDash([]); ctx.stroke();
+  [[R_TTK,'ТТК'],[R_SAD,'Садовое']].forEach(([r])=>{
+    ctx.beginPath();
+    for(let i=0;i<=72;i++){const a=i/72*Math.PI*2;const p=P(r*Math.cos(a),r*Math.sin(a),0);i?ctx.lineTo(p.sx,p.sy):ctx.moveTo(p.sx,p.sy);}
+    ctx.strokeStyle=edge; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+  });
+  ctx.font='500 11px Golos Text, system-ui, sans-serif'; ctx.fillStyle=edge;
+  if(cam.pitch>0.15){
+    const lm=P(MKAD.cx+MKAD.rx*Math.cos(-0.9),MKAD.cy+MKAD.ry*Math.sin(-0.9),0); ctx.fillText('МКАД',lm.sx+4,lm.sy+12);
+    const lt=P(R_TTK*Math.cos(-0.9),R_TTK*Math.sin(-0.9),0); ctx.fillText('ТТК',lt.sx+4,lt.sy+10);
+    // north marker
+    const n0=P(MKAD.cx,MKAD.cy+MKAD.ry+1.2,0), n1=P(MKAD.cx,MKAD.cy+MKAD.ry+4,0);
+    ctx.strokeStyle=ink; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(n0.sx,n0.sy); ctx.lineTo(n1.sx,n1.sy); ctx.stroke();
+    ctx.fillStyle=ink; ctx.font='600 12px Golos Text, system-ui, sans-serif'; ctx.fillText('С',n1.sx-4,n1.sy-5);
+  }
+}
+function drawGauge(ink,edge){
+  if(cam.pitch>1.45)return;
+  // depth gauge at the left edge of the scene (in screen space, anchored to leftmost ground point)
+  const base=P(MKAD.cx-MKAD.rx-3,MKAD.cy-MKAD.ry*0.2,0);
+  const x=Math.max(34,Math.min(base.sx,W-60));
+  const y0=P(MKAD.cx-MKAD.rx-3,MKAD.cy-MKAD.ry*0.2,0).sy;
+  const px=(m)=>P(MKAD.cx-MKAD.rx-3,MKAD.cy-MKAD.ry*0.2,m).sy;
+  ctx.strokeStyle=edge; ctx.fillStyle=edge; ctx.lineWidth=1; ctx.font='11px Golos Text, system-ui, sans-serif';
+  ctx.beginPath(); ctx.moveTo(x,px(-10)); ctx.lineTo(x,px(80)); ctx.stroke();
+  [0,20,40,60,80].forEach(m=>{const y=px(m); ctx.beginPath(); ctx.moveTo(x-4,y); ctx.lineTo(x+4,y); ctx.stroke(); ctx.fillText(m===0?'0 м':m,x-30,y+4);});
+}
+function draw(){
+  if(!W)return;
+  const ink=cssVar('--ink'), edge=cssVar('--ground-edge'), ground=cssVar('--ground'), bg=cssVar('--panel');
+  ctx.clearRect(0,0,W,H);
+  drawGround(ink,edge,ground);
+  drawGauge(ink,edge);
+  const focusLine = selected? selected.line : null;
+  const prims=[];
+  PATHS.forEach(path=>{
+    if(!visible.has(path.line.id))return;
+    for(let i=0;i<path.st.length-1;i++){
+      const a=path.st[i], b=path.st[i+1];
+      const pa=P(a.x,a.y,a.depth), pb=P(b.x,b.y,b.depth);
+      prims.push({k:(pa.ry+pb.ry)/2,t:'seg',a:pa,b:pb,L:path.line});
+    }
+  });
+  projCache=[];
+  STATIONS.forEach(s=>{
+    if(!visible.has(s.line.id))return;
+    const p=P(s.x,s.y,s.depth), g=P(s.x,s.y,0);
+    projCache.push({s,p});
+    prims.push({k:p.ry+0.001,t:'stem',a:g,b:p,L:s.line});
+    prims.push({k:p.ry-0.001,t:'dot',p,s});
+  });
+  prims.sort((u,v)=>v.k-u.k);
+  for(const q of prims){
+    const dim = focusLine && q.L!==focusLine && (q.s?q.s.line!==focusLine:true);
+    if(q.t==='seg'){
+      ctx.strokeStyle=hexA(q.L.color, dim?.18:(colorMode==='depth'?.45:.95)); ctx.lineWidth=colorMode==='depth'?2:3;
+      ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(q.a.sx,q.a.sy); ctx.lineTo(q.b.sx,q.b.sy); ctx.stroke();
+    } else if(q.t==='stem'){
+      if(Math.abs(q.a.sy-q.b.sy)<1)continue;
+      ctx.strokeStyle=hexA(q.L.color, dim?.06:.28); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(q.a.sx,q.a.sy); ctx.lineTo(q.b.sx,q.b.sy); ctx.stroke();
+      ctx.fillStyle=hexA(q.L.color, dim?.1:.5); ctx.fillRect(q.a.sx-1,q.a.sy-1,2,2);
+    } else {
+      const s=q.s, isSel=s===selected, isHov=s===hovered;
+      const dimD = focusLine && s.line!==focusLine;
+      const r=(isSel||isHov?6:3.4)*Math.min(1.6,Math.max(.8,Math.sqrt(cam.zoom)));
+      ctx.globalAlpha=dimD?.25:1;
+      ctx.beginPath(); ctx.arc(q.p.sx,q.p.sy,r,0,Math.PI*2);
+      ctx.fillStyle= colorMode==='depth'?depthColor(s.depth):s.line.color; ctx.fill();
+      ctx.lineWidth=isSel||isHov?2:1; ctx.strokeStyle=isSel||isHov?ink:bg; ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+  }
+  // labels
+  const lbl=[];
+  if($('labels').checked){ projCache.filter(o=>o.s.depth>=58).forEach(o=>lbl.push(o)); }
+  [hovered,selected].forEach(s=>{ if(s){const o=projCache.find(o=>o.s===s); if(o&&!lbl.includes(o))lbl.push(o);} });
+  const used=[];
+  ctx.font='500 12px Golos Text, system-ui, sans-serif';
+  lbl.forEach(o=>{
+    const t=o.s.name+'  '+(o.s.depth>0?fmt(o.s.depth)+' м':'');
+    const w=ctx.measureText(t).width; let x=o.p.sx+8, y=o.p.sy+4;
+    const strong=o.s===hovered||o.s===selected;
+    if(!strong && used.some(u=>Math.abs(u.x-x)<w && Math.abs(u.y-y)<14))return;
+    used.push({x,y});
+    ctx.lineWidth=3; ctx.strokeStyle=bg; ctx.strokeText(t,x,y); ctx.fillStyle=ink; ctx.fillText(t,x,y);
+  });
+}
+// interaction
+let drag=null; const pts=new Map();
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId); pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  drag={x:e.clientX,y:e.clientY,moved:false,d0:null,z0:cam.zoom};
+  if(pts.size===2){const a=[...pts.values()];drag.d0=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);}
+  cv.classList.add('dragging');});
+cv.addEventListener('pointermove',e=>{
+  if(pts.has(e.pointerId))pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(drag){
+    if(pts.size===2&&drag.d0){const a=[...pts.values()];const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);cam.zoom=Math.max(.6,Math.min(6,drag.z0*d/drag.d0));drag.moved=true;draw();return;}
+    const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+    if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;
+    if(drag.moved){ cam.yaw+=dx*0.008; cam.pitch=Math.max(0,Math.min(Math.PI/2,cam.pitch+dy*0.006)); drag.x=e.clientX; drag.y=e.clientY; clearPreset(); hideTip(); draw(); }
+    return;
+  }
+  hoverAt(e);
+});
+function endPtr(e){pts.delete(e.pointerId); if(!drag)return; const wasMove=drag.moved; if(pts.size===0){drag=null;cv.classList.remove('dragging');}
+  if(!wasMove && e.type==='pointerup'){ const s=pick(e); select(s||null); } }
+cv.addEventListener('pointerup',endPtr); cv.addEventListener('pointercancel',endPtr);
+cv.addEventListener('pointerleave',()=>{ if(!drag){hovered=null;hideTip();draw();} });
+cv.addEventListener('wheel',e=>{e.preventDefault(); cam.zoom=Math.max(.6,Math.min(6,cam.zoom*Math.exp(-e.deltaY*0.0015))); draw();},{passive:false});
+function pick(e){
+  const r=cv.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  let best=null,bd=144;
+  for(const o of projCache){const d=(o.p.sx-mx)**2+(o.p.sy-my)**2; if(d<bd){bd=d;best=o.s;}}
+  return best;
+}
+function hoverAt(e){
+  const s=pick(e);
+  if(s!==hovered){hovered=s; draw();}
+  if(s)showTip(e.clientX,e.clientY,s); else hideTip();
+  cv.style.cursor=s?'pointer':'grab';
+}
+const tip=$('tip');
+function showTip(x,y,s){
+  tip.innerHTML=`<b>${s.name}</b><br>${s.line.name}<br><span class="d">${depthText(s)}</span><br><span style="opacity:.8">${zoneText(s)}</span>`;
+  tip.style.display='block';
+  const tw=tip.offsetWidth, th=tip.offsetHeight;
+  tip.style.left=Math.min(window.innerWidth-tw-8,x+14)+'px'; tip.style.top=Math.min(window.innerHeight-th-8,y+14)+'px';
+}
+function hideTip(){tip.style.display='none';}
+
+// presets
+const PRESETS={top:{yaw:0,pitch:Math.PI/2},iso:{yaw:-0.35,pitch:0.75},side:{yaw:0,pitch:0}};
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function clearPreset(){document.querySelectorAll('[data-preset]').forEach(b=>b.setAttribute('aria-pressed','false'));}
+document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
+  clearPreset(); b.setAttribute('aria-pressed','true');
+  const t=PRESETS[b.dataset.preset]; const y0=cam.yaw,p0=cam.pitch;
+  let dy=((t.yaw-y0)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI;
+  if(reduce){cam.yaw=y0+dy;cam.pitch=t.pitch;draw();return;}
+  const t0=performance.now();
+  (function step(now){const k=Math.min(1,(now-t0)/650), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    cam.yaw=y0+dy*e; cam.pitch=p0+(t.pitch-p0)*e; draw(); if(k<1)requestAnimationFrame(step);})(t0);
+});
+document.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>{
+  colorMode=b.dataset.color; document.querySelectorAll('[data-color]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  $('ramp').style.display=colorMode==='depth'?'block':'none'; draw();
+});
+$('exag').oninput=e=>{cam.exag=+e.target.value; draw();};
+$('labels').onchange=draw;
+
+// ---------- INFO PANEL ----------
+function select(s){
+  selected=s; draw();
+  const el=$('info');
+  if(!s){el.innerHTML='<p class="empty">Наведите курсор на станцию или нажмите на неё, чтобы увидеть подробности.</p>';return;}
+  const shallower=sortedDepths.filter(d=>d<s.depth).length;
+  const pct=Math.round(shallower/sortedDepths.length*100);
+  const floors=Math.round(s.depth/3);
+  const lineAvg=s.line.stations.reduce((a,x)=>a+x.depth,0)/s.line.stations.length;
+  let extra='';
+  if(s.depth>0) extra+=`<p>Глубже, чем ${pct}% станций метро.</p><p>Это примерно ${floors}-этажный дом, поставленный вниз.</p>`;
+  extra+=`<p>Средняя глубина линии — ${fmt(lineAvg)} м.</p>`;
+  const note=NOTES[s.line.id+'|'+s.name];
+  el.innerHTML=`<p class="stName">${s.name}</p>
+    <div class="stLine"><span class="dot" style="background:${s.line.color}"></span>${s.line.name} линия</div>
+    <div class="bigDepth">${s.depth<0?'+'+fmt(-s.depth):(s.approx?'≈':'')+fmt(Math.max(0,s.depth))}<span>${s.depth<0?'м над землёй':'м'}</span></div>
+    <div class="meta"><p>${zoneText(s)}</p>${extra}</div>
+    ${note?`<div class="note">${note}</div>`:''}${s.approx?`<div class="note">${APPROX_NOTE}</div>`:''}`;
+}
+
+// ---------- ROSE + RINGS ----------
+function drawStats(){
+  const vis=STATIONS.filter(s=>visible.has(s.line.id));
+  const avg=a=>a.length?a.reduce((x,s)=>x+s.depth,0)/a.length:0;
+  // rose
+  const svg=$('rose'); const cx=130,cy=130,R=96; const ink=cssVar('--ink'), mute=cssVar('--muted'), line=cssVar('--line');
+  const secAvg=SECTORS.map((_,i)=>{const a=vis.filter(s=>s.ring>0&&s.sector===i);return {v:avg(a),n:a.length};});
+  const centerA=vis.filter(s=>s.ring===0); const cAvg=avg(centerA);
+  const mx=Math.max(40,...secAvg.map(x=>x.v),cAvg);
+  let h='';
+  secAvg.forEach((o,i)=>{
+    const a0=(i*45-20)*Math.PI/180, a1=(i*45+20)*Math.PI/180, r=o.v/mx*R, r0=14;
+    const p=(a,rr)=>[cx+rr*Math.sin(a),cy-rr*Math.cos(a)];
+    const [x0,y0]=p(a0,r0),[x1,y1]=p(a0,r),[x2,y2]=p(a1,r),[x3,y3]=p(a1,r0);
+    if(o.n)h+=`<path d="M${x0},${y0}L${x1},${y1}A${r},${r} 0 0 1 ${x2},${y2}L${x3},${y3}A${r0},${r0} 0 0 0 ${x0},${y0}Z" fill="${depthColor(o.v)}" stroke="${cssVar('--panel')}"><title>${SECTORS[i]}: ${fmt(o.v)} м, ${o.n} ст.</title></path>`;
+    const [lx,ly]=p(i*45*Math.PI/180,R+18);
+    h+=`<text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="10.5" fill="${mute}">${['С','СВ','В','ЮВ','Ю','ЮЗ','З','СЗ'][i]}</text>`;
+    if(o.n){const [vx,vy]=p(i*45*Math.PI/180,Math.max(r0+12,r-10)); h+=`<text x="${vx}" y="${vy+4}" text-anchor="middle" font-size="10" font-weight="600" fill="${o.v>30?'#fff':ink}">${Math.round(o.v)}</text>`;}
+  });
+  [20,40].forEach(g=>{h+=`<circle cx="${cx}" cy="${cy}" r="${g/mx*R}" fill="none" stroke="${ink}" stroke-opacity=".35" stroke-dasharray="2 3"/>`;h+=`<text x="${cx+g/mx*R*Math.sin(3.534)}" y="${cy-g/mx*R*Math.cos(3.534)+3}" text-anchor="middle" font-size="9" fill="${mute}">${g} м</text>`;});
+  h+=`<circle cx="${cx}" cy="${cy}" r="13" fill="${depthColor(cAvg)}"><title>Центр (Садовое кольцо): ${fmt(cAvg)} м</title></circle><text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="10" font-weight="600" fill="#fff">${centerA.length?Math.round(cAvg):''}</text>`;
+  svg.innerHTML=h;
+  // rings
+  const rows=RING_NAMES.map((n,i)=>{const a=vis.filter(s=>s.ring===i);return {n,v:avg(a),c:a.length};});
+  const m=Math.max(1,...rows.map(r=>r.v));
+  $('rings').innerHTML=rows.map(r=>`<div class="ringRow"><span>${r.n}</span><div><div class="b" style="width:${Math.max(0,r.v)/m*100}%;background:${depthColor(r.v)};opacity:1"></div></div><span class="v">${r.c?fmt(r.v)+' м':'—'}</span></div>`).join('')+
+    `<p class="meta" style="margin-top:8px">Среднее по видимым станциям. В центре с двух сторон ограничивает застройка и водоносные слои, поэтому станции там в основном глубокие.</p>`;
+}
+
+// ---------- PROFILES ----------
+function drawProfiles(){
+  const el=$('profiles'); const ink=cssVar('--ink'), mute=cssVar('--muted'), line=cssVar('--line');
+  const top=-12, bot=Math.ceil((maxDepth+4)/10)*10, Hh=150, padT=14, padB=14;
+  const y=d=>padT+(d-top)/(bot-top)*(Hh-padT-padB);
+  let html='';
+  PATHS.forEach((path,pi)=>{
+    const L=path.line; if(!visible.has(L.id))return;
+    const st=path.st; const n=st.length; const Wv=Math.max(560,(el.clientWidth||1100)-28-170-30);
+    const x=i=>20+i*(Wv-40)/Math.max(1,n-1);
+    let g=`<line x1="0" x2="${Wv}" y1="${y(0)}" y2="${y(0)}" stroke="${mute}" stroke-dasharray="4 4"/>`;
+    [20,40,60].forEach(d=>g+=`<line x1="0" x2="${Wv}" y1="${y(d)}" y2="${y(d)}" stroke="${line}"/><text x="${Wv+4}" y="${y(d)+4}" font-size="11" fill="${mute}">${d}</text>`);
+    const pts=st.map((s,i)=>`${x(i)},${y(s.depth)}`).join(' ');
+    g+=`<polygon points="${x(0)},${y(0)} ${pts} ${x(n-1)},${y(0)}" fill="${hexA(L.color,.16)}"/>`;
+    g+=`<polyline points="${pts}" fill="none" stroke="${L.color}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    st.forEach((s,i)=>{g+=`<circle cx="${x(i)}" cy="${y(s.depth)}" r="4.2" fill="${L.color}" stroke="${cssVar('--panel')}" stroke-width="1.5" data-k="${STATIONS.indexOf(s)}"/>`;});
+    const f=st[0], l=st[n-1];
+    g+=`<text x="${x(0)}" y="${Hh-1}" font-size="11" fill="${mute}">${f.name}</text><text x="${x(n-1)}" y="${Hh-1}" font-size="11" text-anchor="end" fill="${mute}">${path.line.ring?'':l.name}</text>`;
+    const deep=st.reduce((a,b)=>b.depth>a.depth?b:a);
+    const avg=st.reduce((a,b)=>a+b.depth,0)/n;
+    html+=`<div class="row"><div class="lab">${numBadge(L)}<div>${L.name}${path.branch?' (ветвь)':''}<small>ср. ${fmt(avg)} м, макс. ${fmt(deep.depth)} м</small></div></div>
+      <svg viewBox="0 0 ${Wv+24} ${Hh}" style="height:${Hh}px">${g}</svg></div>`;
+  });
+  el.innerHTML=html||'<p class="empty" style="padding:10px">Включите хотя бы одну линию в фильтре выше.</p>';
+  el.querySelectorAll('circle[data-k]').forEach(c=>{
+    const s=STATIONS[+c.dataset.k];
+    c.addEventListener('pointerenter',e=>showTip(e.clientX,e.clientY,s));
+    c.addEventListener('pointermove',e=>showTip(e.clientX,e.clientY,s));
+    c.addEventListener('pointerleave',hideTip);
+    c.addEventListener('click',()=>{hideTip();select(s);showTab('v3d');});
+  });
+}
+
+// ---------- LIST ----------
+let sortDir='desc';
+SECTORS.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=s;$('secSel').appendChild(o);});
+$('zoneSel').onchange=drawList; $('secSel').onchange=drawList;
+document.querySelectorAll('[data-sort]').forEach(b=>b.onclick=()=>{sortDir=b.dataset.sort;document.querySelectorAll('[data-sort]').forEach(x=>x.setAttribute('aria-pressed',x===b));drawList();});
+function drawList(){
+  const z=$('zoneSel').value, sc=$('secSel').value;
+  let a=STATIONS.filter(s=>visible.has(s.line.id)&&(z===''||s.ring===+z)&&(sc===''||(s.ring>0&&s.sector===+sc)));
+  a.sort((p,q)=>sortDir==='desc'?q.depth-p.depth:p.depth-q.depth);
+  $('rateCount').textContent=a.length+' станций';
+  const lo=-12, hi=maxDepth; const pos=v=>(v-lo)/(hi-lo)*100;
+  $('list').innerHTML=a.map((s,i)=>{
+    const z0=pos(0), zv=pos(s.depth); const left=Math.min(z0,zv), w=Math.abs(zv-z0);
+    return `<div class="lr" data-k="${STATIONS.indexOf(s)}" tabindex="0"><span class="rk">${i+1}</span>
+      <span class="nm"><span class="dot" style="background:${s.line.color}"></span><span title="${s.line.name}">${s.name}</span></span>
+      <span class="zn">${zoneText(s)}</span>
+      <span class="track"><span class="zero" style="left:${z0}%"></span><i style="left:${left}%;width:${Math.max(w,.4)}%;background:${s.line.color}"></i></span>
+      <span class="vl">${s.depth<0?'+'+fmt(-s.depth):(s.approx?'≈':'')+fmt(s.depth)}</span></div>`;}).join('')||'<p class="empty" style="padding:10px 14px">Нет станций для выбранных фильтров.</p>';
+  $('list').querySelectorAll('.lr').forEach(r=>{const go=()=>{select(STATIONS[+r.dataset.k]);showTab('v3d');};r.onclick=go;r.onkeydown=e=>{if(e.key==='Enter')go();};});
+}
+
+function refresh(){
+  if(selected&&!visible.has(selected.line.id))select(null);
+  draw(); drawStats();
+  if($('vprof').classList.contains('active'))drawProfiles();
+  if($('vrate').classList.contains('active'))drawList();
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{draw();drawStats();});
+drawStats(); resize();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(draw);
+})();
+</script>
+</body>
+</html>
